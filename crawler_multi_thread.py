@@ -32,12 +32,15 @@ class CustomParser(HTMLParser): #inherit from HTMLParser
                 full_url = parse.urljoin(self.url,v)
                 self.assets[self.url].add(full_url)
                 if tag == 'a' and k =='href':
-                    #check if relative link 
-                    if urlparse(v).netloc and self.domain in urlparse(v).hostname :
+                    #pass if anchor
+                    if v.startswith('#'):
+                        continue
+                    #check if relative link
+                    if urlparse(v).netloc and self.domain == urlparse(v).hostname :
                         self.urls.add(v)
                     elif not urlparse(v).netloc \
                             and urlparse(full_url).netloc \
-                            and self.domain in str(urlparse(full_url).hostname):
+                            and self.domain == str(urlparse(full_url).hostname):
                         self.urls.add(full_url)
                     
 class Crawler(object):
