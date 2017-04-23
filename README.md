@@ -11,10 +11,10 @@ c = crawler.Crawler(list_of_allowed_tag_attribute_pairs,your_website)
 c.start()
 
 ```
-### Example usage by running main.py from command line:
+### Example usage from command line:
 
 ```
-python main.py --website http://anywebsite.com -v "img src,a href" -p
+python crawler.py --website http://anywebsite.com -v "img src,a href" -p
 ```
 ### Script parameters:
 --website or -w to specify the starting page <br />
