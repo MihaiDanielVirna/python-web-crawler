@@ -3,7 +3,7 @@ import multiprocessing
 import sys
 import traceback
 
-from threading import Thread
+from threading import Thread, current_thread
 from urllib import parse
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -46,12 +46,18 @@ class CustomParser(HTMLParser): #inherit from HTMLParser
                     
 class Crawler(object):
     
-    def __init__(self,accepted_tag_attrib_pairs, root):
+    def __init__(self, root, \
+                 accepted_tag_attrib_pairs = ['a href'],debug = False):
         s = urlopen(root)
+        
+        self.debug = debug
         self.crawl_queue = queue.Queue()
         self.crawl_queue.put(root)
         self.assets = defaultdict(set)
-        self.accepted = accepted_tag_attrib_pairs
+        if not accepted_tag_attrib_pairs:
+            self.accepted = ['a href']
+        else:
+            self.accepted = accepted_tag_attrib_pairs
         self.domain =  urlparse(root).hostname
         self.visited = set()
         self.not_valid_sites = set()
@@ -66,19 +72,26 @@ class Crawler(object):
         self.visited = self.visited.difference(self.not_valid_sites)
         visited_sorted = sorted(self.visited)
         if write_files:
-            assets_file = open('assets.out','w',encoding = 'utf-8', errors = 'replace')
+            print('Writing assets file')
+            assets_file = open('assets.out','w',\
+                               encoding = 'utf-8',\
+                               errors = 'replace')
             for page, assets in self.assets.items():
                 assets_file.write('Assets on '+str(page)+ ' \n')
                 for asset in assets:
                     assets_file.write('\t' + str(asset) + '\n')
                 assets_file.write('\n')
             assets_file.close()
-
-            sitemap = open('sitemap.out','w',encoding = 'utf-8', errors = 'replace')
+            
+            print('Writing sitemap file')
+            sitemap = open('sitemap.out','w',\
+                           encoding = 'utf-8',\
+                           errors = 'replace')
             for site in visited_sorted:
                 sitemap.write(str(site) + '\n')
             sitemap.close()
         print ('Finished!')
+        return True
 
     def create_threads(self):
         for i in range(multiprocessing.cpu_count()):
@@ -86,17 +99,32 @@ class Crawler(object):
             t.daemon = True
             t.start()
         
-    
+    def skip_site(self, site):
+        self.not_valid_sites.add(site)
+        self.crawl_queue.task_done()
+        
     def crawl(self, accepted_tag):
         parser = CustomParser(accepted_tag)
         parser.domain = self.domain
+        thread_id = current_thread()
         while True:
             try:
                 item = self.crawl_queue.get()
+                
+                if self.debug:
+                    print('Visiting ' + item + ' on thread ' + str(thread_id))
+
                 parser.url = item
                 response = urlopen(item)
-                content = response.read().decode('utf-8')
-                response.close()
+
+                if 'html' not in response.info().get_content_type():
+                    self.skip_site(item)
+                    continue
+                
+                encoding = response.headers.get_content_charset()
+                if not encoding:
+                    encoding = 'utf-8'
+                content = response.read().decode(encoding)
                 parser.feed(content)
                 assets, urls = parser.assets, parser.urls
 
@@ -109,14 +137,18 @@ class Crawler(object):
                 self.visited.update(urls)
                 self.crawl_queue.task_done()
                 parser.reset_data()
-                print(len(self.crawl_queue.queue))
+                if self.debug:
+                    print('Remaining : ' + str(len(self.crawl_queue.queue)))
             except:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 log_file = open('log.out','a')
-                log_file.write(str(exc_value) + ' When crawling :' + str(item) + '\n')
+                log_file.write(str(exc_value) + \
+                               ' When crawling :' + str(item) + '\n')
                 log_file.close()
-                self.not_valid_sites.add(item)
-                self.crawl_queue.task_done()
+                self.skip_site(item)
+
+                if self.debug:
+                    print (exc_value)
 
 
 if __name__ == '__main__':
@@ -124,7 +156,10 @@ if __name__ == '__main__':
     import cProfile
 
     try:
-        options, arguments = getopt.getopt(sys.argv[1:], 'w:v:p', ['website=','valid_assets=', 'profile='])
+        options, arguments = getopt.getopt(sys.argv[1:],\
+                                           'w:v:pd',\
+                                           ['website=','valid_assets=',\
+                                            'profile=','debug='])
         if not options:
             raise getopt.GetoptError('Arguments not specified')
     except getopt.GetoptError as err:
@@ -135,18 +170,23 @@ if __name__ == '__main__':
         print('Note : -p is used to profile the code\n')
         sys.exit(2)
     
-
+    
     website = ''
     valid_asset_list = []
     profile = False
+    debug = False
     for opts, arg in options:
         if opts in ('-w','--website'):
             website = arg
-        if opts in ('-v','--valid_assets'):
+        elif opts in ('-v','--valid_assets'):
             valid_asset_list = arg.split(',')
-        if opts in ('-p','--profile'):
+        elif opts in ('-p','--profile'):
             profile = True
-    crawler = Crawler((valid_asset_list),website)
+        elif opts in ('-d','--debug'):
+            debug = True
+    crawler = Crawler(website,\
+                      accepted_tag_attrib_pairs = valid_asset_list,\
+                      debug = debug)
 
     if profile:
         cProfile.run('crawler.start()')
