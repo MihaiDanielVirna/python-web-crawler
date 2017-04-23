@@ -78,7 +78,7 @@ class Crawler(object):
             for site in visited_sorted:
                 sitemap.write(str(site) + '\n')
             sitemap.close()
-        print 'Finished!'
+        print ('Finished!')
 
     def create_threads(self):
         for i in range(multiprocessing.cpu_count()):
@@ -117,3 +117,39 @@ class Crawler(object):
                 log_file.close()
                 self.not_valid_sites.add(item)
                 self.crawl_queue.task_done()
+
+
+if __name__ == '__main__':
+    import getopt
+    import cProfile
+
+    try:
+        options, arguments = getopt.getopt(sys.argv[1:], 'w:v:p', ['website=','valid_assets=', 'profile='])
+        if not options:
+            raise getopt.GetoptError('Arguments not specified')
+    except getopt.GetoptError as err:
+        print(err)
+        print('\n')
+        print('Example usage : python crawler_multi_thread.py'+\
+              ' --website=http://github.com --valid_assets="a href" -p \n')
+        print('Note : -p is used to profile the code\n')
+        sys.exit(2)
+    
+
+    website = ''
+    valid_asset_list = []
+    profile = False
+    for opts, arg in options:
+        if opts in ('-w','--website'):
+            website = arg
+        if opts in ('-v','--valid_assets'):
+            valid_asset_list = arg.split(',')
+        if opts in ('-p','--profile'):
+            profile = True
+    crawler = Crawler((valid_asset_list),website)
+
+    if profile:
+        cProfile.run('crawler.start()')
+    else:
+        crawler.start()
+
