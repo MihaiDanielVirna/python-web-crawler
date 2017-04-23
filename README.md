@@ -7,6 +7,7 @@ Simple web crawler created for a take home test. Outputs a file with the specifi
 ```
 import crawler
 
+# allowed tag list defaults to 'a href' if empty
 c = crawler.Crawler(your_website, list_of_allowed_tag_attribute_pairs)
 c.start()
 
